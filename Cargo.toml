@@ -1,0 +1,12 @@
+[package]
+name = "memarray"
+version = "0.0.1"
+authors = ["Peter Jin <peterhaijin@gmail.com>"]
+
+[lib]
+name = "memarray"
+path = "src/lib.rs"
+
+[dependencies]
+arrayidx = { path = "../arrayidx" }
+libc = "*"
