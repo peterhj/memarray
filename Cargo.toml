@@ -9,4 +9,5 @@ path = "src/lib.rs"
 
 [dependencies]
 arrayidx = { path = "../arrayidx" }
+byteorder = "*"
 libc = "*"
