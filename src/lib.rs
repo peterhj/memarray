@@ -14,21 +14,222 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#![feature(allocator_api)]
+#![feature(ptr_internals)]
+
 extern crate arrayidx;
 extern crate byteorder;
-extern crate libc;
+//extern crate libc;
 
 use arrayidx::*;
 
 use std::cell::{RefCell, Ref, RefMut};
+use std::heap::{Alloc, Heap};
 use std::mem::{size_of};
+use std::ptr::{NonNull, null_mut, write_bytes};
 use std::rc::{Rc};
 use std::slice::{from_raw_parts, from_raw_parts_mut};
-//use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, RwLock};
 
+//pub mod linalg;
 pub mod serial;
 
-pub trait Mem<T> {
+pub struct HeapMem<T> where T: Copy {
+  buf:  *mut T,
+  len:  usize,
+  phsz: usize,
+}
+
+impl<T> Drop for HeapMem<T> where T: Copy {
+  fn drop(&mut self) {
+    assert!(!self.buf.is_null());
+    let p = unsafe { NonNull::new_unchecked(self.buf) };
+    self.buf = null_mut();
+    match unsafe { Heap::default().dealloc_array(p, self.len) } {
+      Err(_) => panic!(),
+      Ok(_) => {}
+    }
+  }
+}
+
+impl<T> HeapMem<T> where T: Copy {
+  pub unsafe fn alloc(len: usize) -> Self {
+    let phsz = len * size_of::<T>();
+    let p = match Heap::default().alloc_array(len) {
+      Err(_) => panic!(),
+      Ok(p) => p,
+    };
+    HeapMem{
+      buf:  p.as_ptr(),
+      len:  len,
+      phsz: phsz,
+    }
+  }
+
+  pub unsafe fn as_ptr(&self) -> *const T {
+    self.buf
+  }
+
+  pub unsafe fn as_mut_ptr(&self) -> *mut T {
+    self.buf
+  }
+
+  pub fn as_slice(&self) -> &[T] {
+    unsafe { from_raw_parts(self.buf, self.len) }
+  }
+
+  pub fn as_mut_slice(&mut self) -> &mut [T] {
+    unsafe { from_raw_parts_mut(self.buf, self.len) }
+  }
+}
+
+pub trait ZeroBits: Copy {}
+
+impl ZeroBits for u8 {}
+impl ZeroBits for u16 {}
+impl ZeroBits for u32 {}
+impl ZeroBits for u64 {}
+impl ZeroBits for usize {}
+
+impl ZeroBits for i8 {}
+impl ZeroBits for i16 {}
+impl ZeroBits for i32 {}
+impl ZeroBits for i64 {}
+impl ZeroBits for isize {}
+
+//impl ZeroBits for f16_stub {}
+impl ZeroBits for f32 {}
+impl ZeroBits for f64 {}
+
+pub trait Array {
+  type Idx;
+
+  fn size(&self) -> Self::Idx;
+}
+
+pub struct MemArray<Idx, T> where T: Copy {
+  size:     Idx,
+  offset:   Idx,
+  stride:   Idx,
+  mem:      HeapMem<T>,
+}
+
+impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
+  pub fn zeros(size: Idx) -> Self {
+    let stride = size.to_packed_stride();
+    let mem = unsafe { HeapMem::<T>::alloc(size.flat_len()) };
+    // The memory is uninitialized, zero it using memset.
+    unsafe { write_bytes(mem.buf, 0, mem.len) };
+    MemArray{
+      size:     size,
+      offset:   Idx::zero(),
+      stride:   stride,
+      mem:      mem,
+    }
+  }
+}
+
+impl<Idx, T> Array for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+  type Idx = Idx;
+
+  fn size(&self) -> Idx {
+    self.size.clone()
+  }
+}
+
+impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+  pub unsafe fn as_ptr(&self) -> *const T {
+    self.mem.as_ptr()
+  }
+
+  pub unsafe fn as_mut_ptr(&self) -> *mut T {
+    self.mem.as_mut_ptr()
+  }
+
+  pub fn as_view<'a>(&'a self) -> MemArrayView<'a, Idx, T> {
+    MemArrayView{
+      size:     self.size.clone(),
+      offset:   self.offset.clone(),
+      stride:   self.stride.clone(),
+      mem:      &self.mem,
+    }
+  }
+
+  pub fn as_view_mut<'a>(&'a mut self) -> MemArrayViewMut<'a, Idx, T> {
+    MemArrayViewMut{
+      size:     self.size.clone(),
+      offset:   self.offset.clone(),
+      stride:   self.stride.clone(),
+      mem:      &mut self.mem,
+    }
+  }
+}
+
+pub struct MemArrayView<'a, Idx, T> where T: Copy + 'static {
+  size:     Idx,
+  offset:   Idx,
+  stride:   Idx,
+  mem:      &'a HeapMem<T>,
+}
+
+impl<'a, Idx, T> Array for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
+  type Idx = Idx;
+
+  fn size(&self) -> Idx {
+    self.size.clone()
+  }
+}
+
+impl<'a, Idx, T> MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
+  pub fn packed_slice(&self) -> Option<&[T]> {
+    if !self.size.is_packed(&self.stride) {
+      return None;
+    }
+    Some(self.mem.as_slice())
+  }
+}
+
+pub struct MemArrayViewMut<'a, Idx, T> where T: Copy + 'static {
+  size:     Idx,
+  offset:   Idx,
+  stride:   Idx,
+  mem:      &'a mut HeapMem<T>,
+}
+
+impl<'a, Idx, T> Array for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
+  type Idx = Idx;
+
+  fn size(&self) -> Idx {
+    self.size.clone()
+  }
+}
+
+impl<'a, Idx, T> MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
+  pub fn packed_slice_mut(&mut self) -> Option<&mut [T]> {
+    if !self.size.is_packed(&self.stride) {
+      return None;
+    }
+    Some(self.mem.as_mut_slice())
+  }
+}
+
+pub struct RWMemArray<Idx, T> where T: Copy {
+  size:     Idx,
+  offset:   Idx,
+  stride:   Idx,
+  mem:      Rc<RefCell<HeapMem<T>>>,
+}
+
+pub struct SharedMemArray<Idx, T> where T: Copy {
+  size:     Idx,
+  offset:   Idx,
+  stride:   Idx,
+  mem:      Arc<RwLock<HeapMem<T>>>,
+}
+
+// TODO: below is the old and deprecated impl.
+
+/*pub trait Mem<T> {
   unsafe fn ptr(&self) -> &*const T;
   unsafe fn shared_mut_ptr(&self) -> &*mut T;
   unsafe fn mut_ptr(&mut self) -> &mut *mut T;
@@ -71,30 +272,7 @@ impl<T> AllocMem<T> {
       psz,
     }
   }
-}
-
-pub trait ZeroBits: Copy {}
-
-impl ZeroBits for u8 {}
-impl ZeroBits for u16 {}
-impl ZeroBits for u32 {}
-impl ZeroBits for u64 {}
-impl ZeroBits for usize {}
-
-impl ZeroBits for i8 {}
-impl ZeroBits for i16 {}
-impl ZeroBits for i32 {}
-impl ZeroBits for i64 {}
-impl ZeroBits for isize {}
-
-impl ZeroBits for f32 {}
-impl ZeroBits for f64 {}
-
-pub trait Array {
-  type Idx;
-
-  fn size(&self) -> Self::Idx;
-}
+}*/
 
 pub trait MemArrayZeros: Array {
   fn zeros(size: Self::Idx) -> Self where Self: Sized;
@@ -104,7 +282,7 @@ pub trait MemBatchArrayZeros: Array {
   fn zeros(size: Self::Idx, batch_size: usize) -> Self where Self: Sized;
 }
 
-pub struct SharedMemArray<Idx, T> where T: Copy {
+/*pub struct SharedMemArray<Idx, T> where T: Copy {
   size:     Idx,
   offset:   Idx,
   stride:   Idx,
@@ -169,4 +347,4 @@ impl<Idx, T> SharedMemArrayView<Idx, T> where Idx: ArrayIndex, T: Copy + 'static
     let mem = self.mem.borrow_mut();
     RefMut::map(mem, |mem| unsafe { mem.mut_ptr() })
   }
-}
+}*/
