@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #![feature(allocator_api)]
+#![feature(collections_range)]
 #![feature(ptr_internals)]
 
 extern crate arrayidx;
@@ -24,6 +25,7 @@ extern crate byteorder;
 use arrayidx::*;
 
 use std::cell::{RefCell, Ref, RefMut};
+use std::collections::range::{RangeArgument};
 use std::heap::{Alloc, Heap};
 use std::mem::{size_of};
 use std::ptr::{NonNull, null_mut, write_bytes};
@@ -107,6 +109,12 @@ pub trait Array {
   fn size(&self) -> Self::Idx;
 }
 
+pub type MemArray0d<T> = MemArray<(), T>;
+pub type MemArray1d<T> = MemArray<usize, T>;
+pub type MemArray2d<T> = MemArray<[usize; 2], T>;
+pub type MemArray3d<T> = MemArray<[usize; 3], T>;
+pub type MemArray4d<T> = MemArray<[usize; 4], T>;
+
 pub struct MemArray<Idx, T> where T: Copy {
   size:     Idx,
   offset:   Idx,
@@ -165,7 +173,13 @@ impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
-pub struct MemArrayView<'a, Idx, T> where T: Copy + 'static {
+pub type MemArrayView0d<'a, T> = MemArrayView<'a, (), T>;
+pub type MemArrayView1d<'a, T> = MemArrayView<'a, usize, T>;
+pub type MemArrayView2d<'a, T> = MemArrayView<'a, [usize; 2], T>;
+pub type MemArrayView3d<'a, T> = MemArrayView<'a, [usize; 3], T>;
+pub type MemArrayView4d<'a, T> = MemArrayView<'a, [usize; 4], T>;
+
+pub struct MemArrayView<'a, Idx, T> where /*Idx: 'static,*/ T: Copy + 'static {
   size:     Idx,
   offset:   Idx,
   stride:   Idx,
@@ -181,11 +195,81 @@ impl<'a, Idx, T> Array for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Co
 }
 
 impl<'a, Idx, T> MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
-  pub fn packed_slice(&self) -> Option<&[T]> {
+  pub fn as_packed_slice(&self) -> Option<&[T]> {
     if !self.size.is_packed(&self.stride) {
       return None;
     }
     Some(self.mem.as_slice())
+  }
+}
+
+impl<'a, T> MemArrayView<'a, usize, T> where T: Copy + 'static {
+  pub fn view<R>(self, r: R) -> MemArrayView<'a, usize, T>
+  where R: RangeArgument<usize>,
+  {
+    let (start_idx, end_idx) = range2idxs_1d(r, self.size);
+    let view_size = end_idx - start_idx;
+    let view_offset = self.offset + start_idx;
+    MemArrayView{
+      size:     view_size,
+      offset:   view_offset,
+      stride:   self.stride,
+      mem:      self.mem,
+    }
+  }
+}
+
+impl<'a, T> MemArrayView<'a, [usize; 2], T> where T: Copy + 'static {
+  pub fn view<R0, R1>(self, r0: R0, r1: R1) -> MemArrayView<'a, [usize; 2], T>
+  where R0: RangeArgument<usize>,
+        R1: RangeArgument<usize>,
+  {
+    let (start_idx, end_idx) = range2idxs_2d(r0, r1, self.size);
+    let view_size = end_idx.index_sub(&start_idx);
+    let view_offset = self.offset.index_add(&start_idx);
+    MemArrayView{
+      size:     view_size,
+      offset:   view_offset,
+      stride:   self.stride,
+      mem:      self.mem,
+    }
+  }
+}
+
+impl<'a, T> MemArrayView<'a, [usize; 3], T> where T: Copy + 'static {
+  pub fn view<R0, R1, R2>(self, r0: R0, r1: R1, r2: R2) -> MemArrayView<'a, [usize; 3], T>
+  where R0: RangeArgument<usize>,
+        R1: RangeArgument<usize>,
+        R2: RangeArgument<usize>,
+  {
+    let (start_idx, end_idx) = range2idxs_3d(r0, r1, r2, self.size);
+    let view_size = end_idx.index_sub(&start_idx);
+    let view_offset = self.offset.index_add(&start_idx);
+    MemArrayView{
+      size:     view_size,
+      offset:   view_offset,
+      stride:   self.stride,
+      mem:      self.mem,
+    }
+  }
+}
+
+impl<'a, T> MemArrayView<'a, [usize; 4], T> where T: Copy + 'static {
+  pub fn view<R0, R1, R2, R3>(self, r0: R0, r1: R1, r2: R2, r3: R3) -> MemArrayView<'a, [usize; 4], T>
+  where R0: RangeArgument<usize>,
+        R1: RangeArgument<usize>,
+        R2: RangeArgument<usize>,
+        R3: RangeArgument<usize>,
+  {
+    let (start_idx, end_idx) = range2idxs_4d(r0, r1, r2, r3, self.size);
+    let view_size = end_idx.index_sub(&start_idx);
+    let view_offset = self.offset.index_add(&start_idx);
+    MemArrayView{
+      size:     view_size,
+      offset:   view_offset,
+      stride:   self.stride.clone(),
+      mem:      self.mem,
+    }
   }
 }
 
@@ -205,7 +289,7 @@ impl<'a, Idx, T> Array for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T:
 }
 
 impl<'a, Idx, T> MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
-  pub fn packed_slice_mut(&mut self) -> Option<&mut [T]> {
+  pub fn as_packed_slice_mut(&mut self) -> Option<&mut [T]> {
     if !self.size.is_packed(&self.stride) {
       return None;
     }
