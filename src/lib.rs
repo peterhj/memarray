@@ -20,9 +20,10 @@ limitations under the License.
 
 extern crate arrayidx;
 extern crate byteorder;
-//extern crate libc;
+extern crate float;
 
 use arrayidx::*;
+use float::stub::{f16_stub};
 
 use std::cell::{RefCell, Ref, RefMut};
 use std::collections::range::{RangeArgument};
@@ -99,21 +100,33 @@ impl ZeroBits for i32 {}
 impl ZeroBits for i64 {}
 impl ZeroBits for isize {}
 
-//impl ZeroBits for f16_stub {}
+impl ZeroBits for f16_stub {}
 impl ZeroBits for f32 {}
 impl ZeroBits for f64 {}
 
 pub trait Array {
-  type Idx;
+  type Idx: ArrayIndex;
 
   fn size(&self) -> Self::Idx;
 }
 
-pub type MemArray0d<T> = MemArray<(), T>;
-pub type MemArray1d<T> = MemArray<usize, T>;
-pub type MemArray2d<T> = MemArray<[usize; 2], T>;
-pub type MemArray3d<T> = MemArray<[usize; 3], T>;
-pub type MemArray4d<T> = MemArray<[usize; 4], T>;
+pub trait DenseArray: Array {
+  fn offset(&self) -> Self::Idx;
+  fn stride(&self) -> Self::Idx;
+
+  fn flat_offset(&self) -> usize {
+    self.offset().flat_index(&self.stride())
+  }
+
+  fn is_packed(&self) -> bool {
+    self.size().is_packed(&self.stride())
+  }
+}
+
+pub trait BatchArray: Array {
+  fn batch_size(&self) -> usize;
+  fn set_batch_size(&mut self, new_batch_sz: usize);
+}
 
 pub struct MemArray<Idx, T> where T: Copy {
   size:     Idx,
@@ -121,6 +134,12 @@ pub struct MemArray<Idx, T> where T: Copy {
   stride:   Idx,
   mem:      HeapMem<T>,
 }
+
+pub type MemArray0d<T> = MemArray<Index0d, T>;
+pub type MemArray1d<T> = MemArray<Index1d, T>;
+pub type MemArray2d<T> = MemArray<Index2d, T>;
+pub type MemArray3d<T> = MemArray<Index3d, T>;
+pub type MemArray4d<T> = MemArray<Index4d, T>;
 
 impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
   pub fn zeros(size: Idx) -> Self {
@@ -145,14 +164,24 @@ impl<Idx, T> Array for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
+impl<Idx, T> DenseArray for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+  fn offset(&self) -> Idx {
+    self.offset.clone()
+  }
+
+  fn stride(&self) -> Idx {
+    self.stride.clone()
+  }
+}
+
 impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
-  pub unsafe fn as_ptr(&self) -> *const T {
-    self.mem.as_ptr()
+  /*pub unsafe fn as_ptr(&self) -> *const T {
+    self.mem.as_ptr().offset(self.flat_offset() as _)
   }
 
   pub unsafe fn as_mut_ptr(&self) -> *mut T {
-    self.mem.as_mut_ptr()
-  }
+    self.mem.as_mut_ptr().offset(self.flat_offset() as _)
+  }*/
 
   pub fn as_view<'a>(&'a self) -> MemArrayView<'a, Idx, T> {
     MemArrayView{
@@ -173,18 +202,18 @@ impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
-pub type MemArrayView0d<'a, T> = MemArrayView<'a, (), T>;
-pub type MemArrayView1d<'a, T> = MemArrayView<'a, usize, T>;
-pub type MemArrayView2d<'a, T> = MemArrayView<'a, [usize; 2], T>;
-pub type MemArrayView3d<'a, T> = MemArrayView<'a, [usize; 3], T>;
-pub type MemArrayView4d<'a, T> = MemArrayView<'a, [usize; 4], T>;
-
 pub struct MemArrayView<'a, Idx, T> where /*Idx: 'static,*/ T: Copy + 'static {
   size:     Idx,
   offset:   Idx,
   stride:   Idx,
   mem:      &'a HeapMem<T>,
 }
+
+pub type MemArrayView0d<'a, T> = MemArrayView<'a, Index0d, T>;
+pub type MemArrayView1d<'a, T> = MemArrayView<'a, Index1d, T>;
+pub type MemArrayView2d<'a, T> = MemArrayView<'a, Index2d, T>;
+pub type MemArrayView3d<'a, T> = MemArrayView<'a, Index3d, T>;
+pub type MemArrayView4d<'a, T> = MemArrayView<'a, Index4d, T>;
 
 impl<'a, Idx, T> Array for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
   type Idx = Idx;
@@ -194,9 +223,23 @@ impl<'a, Idx, T> Array for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Co
   }
 }
 
+impl<'a, Idx, T> DenseArray for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
+  fn offset(&self) -> Idx {
+    self.offset.clone()
+  }
+
+  fn stride(&self) -> Idx {
+    self.stride.clone()
+  }
+}
+
 impl<'a, Idx, T> MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
-  pub fn as_packed_slice(&self) -> Option<&[T]> {
-    if !self.size.is_packed(&self.stride) {
+  pub unsafe fn as_ptr(&self) -> *const T {
+    self.mem.as_ptr().offset(self.flat_offset() as _)
+  }
+
+  pub fn flat_slice(&self) -> Option<&[T]> {
+    if !self.is_packed() {
       return None;
     }
     Some(self.mem.as_slice())
@@ -280,6 +323,12 @@ pub struct MemArrayViewMut<'a, Idx, T> where T: Copy + 'static {
   mem:      &'a mut HeapMem<T>,
 }
 
+pub type MemArrayViewMut0d<'a, T> = MemArrayViewMut<'a, Index0d, T>;
+pub type MemArrayViewMut1d<'a, T> = MemArrayViewMut<'a, Index1d, T>;
+pub type MemArrayViewMut2d<'a, T> = MemArrayViewMut<'a, Index2d, T>;
+pub type MemArrayViewMut3d<'a, T> = MemArrayViewMut<'a, Index3d, T>;
+pub type MemArrayViewMut4d<'a, T> = MemArrayViewMut<'a, Index4d, T>;
+
 impl<'a, Idx, T> Array for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
   type Idx = Idx;
 
@@ -288,9 +337,27 @@ impl<'a, Idx, T> Array for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T:
   }
 }
 
+impl<'a, Idx, T> DenseArray for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
+  fn offset(&self) -> Idx {
+    self.offset.clone()
+  }
+
+  fn stride(&self) -> Idx {
+    self.stride.clone()
+  }
+}
+
 impl<'a, Idx, T> MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
-  pub fn as_packed_slice_mut(&mut self) -> Option<&mut [T]> {
-    if !self.size.is_packed(&self.stride) {
+  pub unsafe fn as_ptr(&self) -> *const T {
+    self.mem.as_ptr().offset(self.flat_offset() as _)
+  }
+
+  pub unsafe fn as_mut_ptr(&self) -> *mut T {
+    self.mem.as_mut_ptr().offset(self.flat_offset() as _)
+  }
+
+  pub fn flat_slice_mut(&mut self) -> Option<&mut [T]> {
+    if !self.is_packed() {
       return None;
     }
     Some(self.mem.as_mut_slice())
