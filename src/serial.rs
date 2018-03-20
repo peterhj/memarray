@@ -18,6 +18,7 @@ use byteorder::*;
 
 use std::collections::{BTreeMap};
 use std::io::{Read, Write};
+use std::str::{from_utf8};
 
 pub trait NpySerialize {
   fn deserialize(reader: &mut Read) -> Self;
@@ -76,7 +77,7 @@ pub fn read_npy_header<R>(reader: &mut R) -> Result<NpyHeader, ()> where R: Read
   for _ in 0 .. 6 {
     magicnum.push(0);
   }
-  reader.read_exact(&mut magic_num).unwrap();
+  reader.read_exact(&mut magicnum).unwrap();
   if &magicnum != b"\x93NUMPY" {
     return Err(());
   }
@@ -85,17 +86,17 @@ pub fn read_npy_header<R>(reader: &mut R) -> Result<NpyHeader, ()> where R: Read
   if (major_ver, minor_ver) != (1, 0) {
     return Err(());
   }
-  let header_len = reader.read_u16::<LittleEndian>().unwrap();
+  let header_len = reader.read_u16::<LittleEndian>().unwrap() as usize;
   let mut header = Vec::with_capacity(header_len);
   for _ in 0 .. header_len {
     header.push(0);
   }
   reader.read_exact(&mut header).unwrap();
   assert_eq!((10 + header_len) % 16, 0);
-  let header_toks: Vec<_> = header.split_whitespace().collect();
-  assert_eq!(&header_toks[0], b"{'descr':");
-  assert_eq!(&header_toks[2], b"'fortran_order':");
-  assert_eq!(&header_toks[4], b"'shape':");
+  let header_toks: Vec<_> = from_utf8(&header).unwrap().split_whitespace().collect();
+  assert_eq!(header_toks[0], "{'descr':");
+  assert_eq!(header_toks[2], "'fortran_order':");
+  assert_eq!(header_toks[4], "'shape':");
   // TODO
   unimplemented!();
 }
@@ -126,24 +127,24 @@ pub fn write_nkv_header<W>(archive: &NkvArchive, writer: &mut W) -> Result<NkvHe
     unpadded_header_len += key_len + 20;
   }
   let header_len = (12 + unpadded_header_len + 16 - 1) / 16 * 16 - 12;
-  writer.write_u32::<LittleEndian>().unwrap();
+  writer.write_u32::<LittleEndian>(header_len as _).unwrap();
   writer.write_u32::<LittleEndian>(archive.kvs.len() as _).unwrap();
   let mut offset = 12 + header_len;
   let mut kvoffsets = BTreeMap::new();
-  for (key, &value) in archive.kvs.iter() {
+  for (key, ref value) in archive.kvs.iter() {
     let value_len = value.flat_len();
     writer.write_u32::<LittleEndian>(key.as_bytes().len() as _).unwrap();
     writer.write_all(key.as_bytes()).unwrap();
-    writer.write_u64::<LittleEndian>(offset).unwrap();
-    writer.write_u64::<LittleEndian>(value_len).unwrap();
-    kvoffsets.insert(key.clone(), (offset, value_len));
+    writer.write_u64::<LittleEndian>(offset as _).unwrap();
+    writer.write_u64::<LittleEndian>(value_len as _).unwrap();
+    kvoffsets.insert(key.clone(), (offset as _, value_len as _));
     offset += (value_len + 16 - 1) / 16 * 16;
   }
   for _ in 0 .. header_len - unpadded_header_len {
     writer.write_u8(0).unwrap();
   }
   Ok(NkvHeader{
-    hlen: header_len,
+    hlen: header_len as _,
     kvs:  kvoffsets,
   })
 }
