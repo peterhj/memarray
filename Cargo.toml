@@ -11,3 +11,4 @@ path = "src/lib.rs"
 arrayidx = { path = "../arrayidx" }
 byteorder = "*"
 float = { path = "../libfloat" }
+parking_lot = "*"

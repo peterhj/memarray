@@ -21,9 +21,11 @@ limitations under the License.
 extern crate arrayidx;
 extern crate byteorder;
 extern crate float;
+extern crate parking_lot;
 
 use arrayidx::*;
 use float::stub::{f16_stub};
+use parking_lot::{RwLock};
 
 use std::cell::{RefCell, Ref, RefMut};
 use std::collections::range::{RangeArgument};
@@ -32,7 +34,7 @@ use std::mem::{size_of};
 use std::ptr::{NonNull, null_mut, write_bytes};
 use std::rc::{Rc};
 use std::slice::{from_raw_parts, from_raw_parts_mut};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc};
 
 //pub mod linalg;
 pub mod serial;
