@@ -204,6 +204,41 @@ impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
+pub struct OuterBatchMemArray<Idx, T> where T: Copy {
+  size:     Idx,
+  offset:   Idx,
+  stride:   Idx,
+  batch_sz:     usize,
+  max_batch_sz: usize,
+  mem:      HeapMem<T>,
+}
+
+pub type OuterBatchMemArray0d<T> = OuterBatchMemArray<Index0d, T>;
+pub type OuterBatchMemArray1d<T> = OuterBatchMemArray<Index1d, T>;
+pub type OuterBatchMemArray2d<T> = OuterBatchMemArray<Index2d, T>;
+pub type OuterBatchMemArray3d<T> = OuterBatchMemArray<Index3d, T>;
+pub type OuterBatchMemArray4d<T> = OuterBatchMemArray<Index4d, T>;
+
+impl<Idx, T> OuterBatchMemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+  pub fn as_view<'a>(&'a self) -> MemArrayView<'a, <Idx as ArrayIndex>::Above, T> {
+    MemArrayView{
+      size:     self.size.append(self.batch_sz),
+      offset:   self.offset.append(0),
+      stride:   self.stride.stride_append_packed(self.batch_sz),
+      mem:      &self.mem,
+    }
+  }
+
+  pub fn as_view_mut<'a>(&'a mut self) -> MemArrayViewMut<'a, <Idx as ArrayIndex>::Above, T> {
+    MemArrayViewMut{
+      size:     self.size.append(self.batch_sz),
+      offset:   self.offset.append(0),
+      stride:   self.stride.stride_append_packed(self.batch_sz),
+      mem:      &mut self.mem,
+    }
+  }
+}
+
 pub struct MemArrayView<'a, Idx, T> where /*Idx: 'static,*/ T: Copy + 'static {
   size:     Idx,
   offset:   Idx,
