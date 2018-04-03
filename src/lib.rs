@@ -204,7 +204,7 @@ impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
-pub struct OuterBatchMemArray<Idx, T> where T: Copy {
+pub struct MemOuterBatchArray<Idx, T> where T: Copy {
   size:     Idx,
   offset:   Idx,
   stride:   Idx,
@@ -213,13 +213,13 @@ pub struct OuterBatchMemArray<Idx, T> where T: Copy {
   mem:      HeapMem<T>,
 }
 
-pub type OuterBatchMemArray0d<T> = OuterBatchMemArray<Index0d, T>;
-pub type OuterBatchMemArray1d<T> = OuterBatchMemArray<Index1d, T>;
-pub type OuterBatchMemArray2d<T> = OuterBatchMemArray<Index2d, T>;
-pub type OuterBatchMemArray3d<T> = OuterBatchMemArray<Index3d, T>;
-pub type OuterBatchMemArray4d<T> = OuterBatchMemArray<Index4d, T>;
+pub type MemOuterBatchArray0d<T> = MemOuterBatchArray<Index0d, T>;
+pub type MemOuterBatchArray1d<T> = MemOuterBatchArray<Index1d, T>;
+pub type MemOuterBatchArray2d<T> = MemOuterBatchArray<Index2d, T>;
+pub type MemOuterBatchArray3d<T> = MemOuterBatchArray<Index3d, T>;
+pub type MemOuterBatchArray4d<T> = MemOuterBatchArray<Index4d, T>;
 
-impl<Idx, T> OuterBatchMemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+impl<Idx, T> MemOuterBatchArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   pub fn as_view<'a>(&'a self) -> MemArrayView<'a, <Idx as ArrayIndex>::Above, T> {
     MemArrayView{
       size:     self.size.append(self.batch_sz),
