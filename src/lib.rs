@@ -366,6 +366,76 @@ impl<'a, Idx, T> MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 's
   }
 }
 
+impl<'a, T> MemArrayViewMut<'a, usize, T> where T: Copy + 'static {
+  pub fn view_mut<R>(self, r: R) -> MemArrayViewMut<'a, usize, T>
+  where R: RangeArgument<usize>,
+  {
+    let (start_idx, end_idx) = range2idxs_1d(r, self.size);
+    let view_size = end_idx - start_idx;
+    let view_offset = self.offset + start_idx;
+    MemArrayViewMut{
+      size:     view_size,
+      offset:   view_offset,
+      stride:   self.stride,
+      mem:      self.mem,
+    }
+  }
+}
+
+impl<'a, T> MemArrayViewMut<'a, [usize; 2], T> where T: Copy + 'static {
+  pub fn view_mut<R0, R1>(self, r0: R0, r1: R1) -> MemArrayViewMut<'a, [usize; 2], T>
+  where R0: RangeArgument<usize>,
+        R1: RangeArgument<usize>,
+  {
+    let (start_idx, end_idx) = range2idxs_2d(r0, r1, self.size);
+    let view_size = end_idx.index_sub(&start_idx);
+    let view_offset = self.offset.index_add(&start_idx);
+    MemArrayViewMut{
+      size:     view_size,
+      offset:   view_offset,
+      stride:   self.stride,
+      mem:      self.mem,
+    }
+  }
+}
+
+impl<'a, T> MemArrayViewMut<'a, [usize; 3], T> where T: Copy + 'static {
+  pub fn view_mut<R0, R1, R2>(self, r0: R0, r1: R1, r2: R2) -> MemArrayViewMut<'a, [usize; 3], T>
+  where R0: RangeArgument<usize>,
+        R1: RangeArgument<usize>,
+        R2: RangeArgument<usize>,
+  {
+    let (start_idx, end_idx) = range2idxs_3d(r0, r1, r2, self.size);
+    let view_size = end_idx.index_sub(&start_idx);
+    let view_offset = self.offset.index_add(&start_idx);
+    MemArrayViewMut{
+      size:     view_size,
+      offset:   view_offset,
+      stride:   self.stride,
+      mem:      self.mem,
+    }
+  }
+}
+
+impl<'a, T> MemArrayViewMut<'a, [usize; 4], T> where T: Copy + 'static {
+  pub fn view_mut<R0, R1, R2, R3>(self, r0: R0, r1: R1, r2: R2, r3: R3) -> MemArrayViewMut<'a, [usize; 4], T>
+  where R0: RangeArgument<usize>,
+        R1: RangeArgument<usize>,
+        R2: RangeArgument<usize>,
+        R3: RangeArgument<usize>,
+  {
+    let (start_idx, end_idx) = range2idxs_4d(r0, r1, r2, r3, self.size);
+    let view_size = end_idx.index_sub(&start_idx);
+    let view_offset = self.offset.index_add(&start_idx);
+    MemArrayViewMut{
+      size:     view_size,
+      offset:   view_offset,
+      stride:   self.stride.clone(),
+      mem:      self.mem,
+    }
+  }
+}
+
 pub struct RWMemArray<Idx, T> where T: Copy {
   size:     Idx,
   offset:   Idx,
@@ -380,53 +450,6 @@ pub struct SharedMemArray<Idx, T> where T: Copy {
   mem:      Arc<RwLock<HeapMem<T>>>,
 }
 
-// TODO: below is the old and deprecated impl.
-
-/*pub trait Mem<T> {
-  unsafe fn ptr(&self) -> &*const T;
-  unsafe fn shared_mut_ptr(&self) -> &*mut T;
-  unsafe fn mut_ptr(&mut self) -> &mut *mut T;
-  fn len(&self) -> usize;
-}
-
-pub struct AllocMem<T> {
-  ptr:  *mut T,
-  ptrc: *const T,
-  len:  usize,
-  psz:  usize,
-}
-
-impl<T> Mem<T> for AllocMem<T> {
-  unsafe fn ptr(&self) -> &*const T {
-    &self.ptrc
-  }
-
-  unsafe fn shared_mut_ptr(&self) -> &*mut T {
-    &self.ptr
-  }
-
-  unsafe fn mut_ptr(&mut self) -> &mut *mut T {
-    &mut self.ptr
-  }
-
-  fn len(&self) -> usize {
-    self.len
-  }
-}
-
-impl<T> AllocMem<T> {
-  pub unsafe fn alloc(len: usize) -> Self {
-    let psz = len * size_of::<T>();
-    let ptr = unsafe { libc::malloc(psz) } as *mut T;
-    AllocMem{
-      ptr,
-      ptrc: ptr,
-      len,
-      psz,
-    }
-  }
-}*/
-
 pub trait MemArrayZeros: Array {
   fn zeros(size: Self::Idx) -> Self where Self: Sized;
 }
@@ -434,70 +457,3 @@ pub trait MemArrayZeros: Array {
 pub trait MemBatchArrayZeros: Array {
   fn zeros(size: Self::Idx, batch_size: usize) -> Self where Self: Sized;
 }
-
-/*pub struct SharedMemArray<Idx, T> where T: Copy {
-  size:     Idx,
-  offset:   Idx,
-  stride:   Idx,
-  //mem:      Arc<RwLock<Mem<T>>>,
-  mem:      Rc<RefCell<Mem<T>>>,
-}
-
-pub type SharedMemScalar<T>  = SharedMemArray<Index0d, T>;
-pub type SharedMemArray1d<T> = SharedMemArray<Index1d, T>;
-pub type SharedMemArray2d<T> = SharedMemArray<Index2d, T>;
-pub type SharedMemArray3d<T> = SharedMemArray<Index3d, T>;
-pub type SharedMemArray4d<T> = SharedMemArray<Index4d, T>;
-pub type SharedMemArray5d<T> = SharedMemArray<Index5d, T>;
-
-impl<Idx, T> Array for SharedMemArray<Idx, T> where Idx: ArrayIndex + Copy, T: Copy + 'static {
-  type Idx = Idx;
-
-  fn size(&self) -> Idx {
-    self.size
-  }
-}
-
-impl<Idx, T> MemArrayZeros for SharedMemArray<Idx, T> where Idx: ArrayIndex + Copy, T: ZeroBits + Copy + 'static {
-  fn zeros(size: Idx) -> Self {
-    let mut mem = unsafe { AllocMem::<T>::alloc(size.flat_len()) };
-    unsafe { libc::memset(*mem.mut_ptr() as *mut _, 0, mem.len() * size_of::<T>()) };
-    SharedMemArray{
-      size:     size,
-      offset:   Idx::zero(),
-      stride:   size.to_packed_stride(),
-      //mem:      Arc::new(RwLock::new(mem)),
-      mem:      Rc::new(RefCell::new(mem)),
-    }
-  }
-}
-
-impl<Idx, T> SharedMemArray<Idx, T> where Idx: ArrayIndex + Copy, T: Copy + 'static {
-  fn as_view(&self) -> SharedMemArrayView<Idx, T> {
-    SharedMemArrayView{
-      size:     self.size,
-      offset:   self.offset,
-      stride:   self.stride,
-      mem:      self.mem.clone(),
-    }
-  }
-}
-
-pub struct SharedMemArrayView<Idx, T> where T: Copy + 'static {
-  size:     Idx,
-  offset:   Idx,
-  stride:   Idx,
-  mem:      Rc<RefCell<Mem<T>>>,
-}
-
-impl<Idx, T> SharedMemArrayView<Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
-  pub unsafe fn as_ptr(&self) -> Ref<*const T> {
-    let mem = self.mem.borrow();
-    Ref::map(mem, |mem| unsafe { mem.ptr() })
-  }
-
-  pub unsafe fn as_mut_ptr(&self) -> RefMut<*mut T> {
-    let mem = self.mem.borrow_mut();
-    RefMut::map(mem, |mem| unsafe { mem.mut_ptr() })
-  }
-}*/
