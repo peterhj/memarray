@@ -126,7 +126,7 @@ pub trait DenseArray: Array {
 }
 
 pub trait BatchArray: Array {
-  fn batch_capacity(&self) -> usize;
+  fn max_batch_size(&self) -> usize;
   fn batch_size(&self) -> usize;
   fn set_batch_size(&mut self, new_batch_sz: usize);
 }
