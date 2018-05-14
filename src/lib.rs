@@ -36,7 +36,8 @@ use std::rc::{Rc};
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 use std::sync::{Arc};
 
-//pub mod linalg;
+pub mod ffi;
+pub mod linalg;
 pub mod serial;
 
 pub struct HeapMem<T> where T: Copy {
