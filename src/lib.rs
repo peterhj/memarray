@@ -111,6 +111,10 @@ pub trait Array {
   type Idx: ArrayIndex;
 
   fn size(&self) -> Self::Idx;
+
+  fn flat_size(&self) -> usize {
+    self.size().flat_len()
+  }
 }
 
 pub trait DenseArray: Array {
@@ -281,7 +285,7 @@ impl<'a, Idx, T> MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'stat
     if !self.is_packed() {
       return None;
     }
-    Some(self.mem.as_slice())
+    Some(&self.mem.as_slice()[self.flat_offset() .. self.flat_offset() + self.flat_size()])
   }
 }
 
@@ -395,11 +399,20 @@ impl<'a, Idx, T> MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 's
     self.mem.as_mut_ptr().offset(self.flat_offset() as _)
   }
 
+  pub fn flat_slice(&self) -> Option<&[T]> {
+    if !self.is_packed() {
+      return None;
+    }
+    Some(&self.mem.as_slice()[self.flat_offset() .. self.flat_offset() + self.flat_size()])
+  }
+
   pub fn flat_slice_mut(&mut self) -> Option<&mut [T]> {
     if !self.is_packed() {
       return None;
     }
-    Some(self.mem.as_mut_slice())
+    let off = self.flat_offset();
+    let len = self.flat_size();
+    Some(&mut self.mem.as_mut_slice()[off .. off + len])
   }
 }
 
