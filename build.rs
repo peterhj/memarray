@@ -16,7 +16,10 @@ fn main() {
       },
     });
 
-    println!("cargo:rustc-link-lib=mklml_gnu");
+    //println!("cargo:rustc-link-lib=mklml_gnu");
+    //println!("cargo:rustc-link-lib=gomp");
+    println!("cargo:rustc-link-lib=mklml_intel");
+    println!("cargo:rustc-link-lib=iomp5");
 
     fs::remove_file(out_dir.join("mkl_bind.rs")).ok();
 

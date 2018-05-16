@@ -10,6 +10,7 @@ path = "src/lib.rs"
 [features]
 default = []
 mkl = []
+#mkl_gnu = []
 
 [build-dependencies]
 bindgen = "*"
