@@ -27,9 +27,9 @@ use arrayidx::*;
 use float::stub::{f16_stub};
 use parking_lot::{RwLock};
 
-use std::cell::{RefCell, Ref, RefMut};
+use std::alloc::{Alloc, Global};
+use std::cell::{RefCell};
 use std::collections::range::{RangeArgument};
-use std::heap::{Alloc, Heap};
 use std::mem::{size_of};
 use std::ptr::{NonNull, null_mut, write_bytes};
 use std::rc::{Rc};
@@ -51,7 +51,7 @@ impl<T> Drop for HeapMem<T> where T: Copy {
     assert!(!self.buf.is_null());
     let p = unsafe { NonNull::new_unchecked(self.buf) };
     self.buf = null_mut();
-    match unsafe { Heap::default().dealloc_array(p, self.len) } {
+    match unsafe { Global::default().dealloc_array(p, self.len) } {
       Err(_) => panic!(),
       Ok(_) => {}
     }
@@ -61,7 +61,7 @@ impl<T> Drop for HeapMem<T> where T: Copy {
 impl<T> HeapMem<T> where T: Copy {
   pub unsafe fn alloc(len: usize) -> Self {
     let phsz = len * size_of::<T>();
-    let p = match Heap::default().alloc_array(len) {
+    let p = match Global::default().alloc_array(len) {
       Err(_) => panic!(),
       Ok(p) => p,
     };
@@ -208,6 +208,20 @@ impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
       mem:      &mut self.mem,
     }
   }
+
+  pub fn flat_view<'a>(&'a self) -> Option<MemArrayView1d<'a, T>> {
+    if self.is_packed() {
+      let flat_size = self.flat_size();
+      Some(MemArrayView{
+        size:       flat_size,
+        offset:     0,
+        stride:     flat_size.to_packed_stride(),
+        mem:        &self.mem,
+      })
+    } else {
+      None
+    }
+  }
 }
 
 pub struct MemOuterBatchArray<Idx, T> where T: Copy {
@@ -289,7 +303,11 @@ impl<'a, Idx, T> MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'stat
   }
 }
 
-impl<'a, T> MemArrayView<'a, usize, T> where T: Copy + 'static {
+impl<'a, T> MemArrayView1d<'a, T> where T: Copy + 'static {
+  pub fn as_slice(&self) -> &[T] {
+    self.flat_slice().unwrap()
+  }
+
   pub fn view<R>(self, r: R) -> MemArrayView<'a, usize, T>
   where R: RangeArgument<usize>,
   {
@@ -305,7 +323,7 @@ impl<'a, T> MemArrayView<'a, usize, T> where T: Copy + 'static {
   }
 }
 
-impl<'a, T> MemArrayView<'a, [usize; 2], T> where T: Copy + 'static {
+impl<'a, T> MemArrayView2d<'a, T> where T: Copy + 'static {
   pub fn view<R0, R1>(self, r0: R0, r1: R1) -> MemArrayView<'a, [usize; 2], T>
   where R0: RangeArgument<usize>,
         R1: RangeArgument<usize>,
@@ -322,7 +340,7 @@ impl<'a, T> MemArrayView<'a, [usize; 2], T> where T: Copy + 'static {
   }
 }
 
-impl<'a, T> MemArrayView<'a, [usize; 3], T> where T: Copy + 'static {
+impl<'a, T> MemArrayView3d<'a, T> where T: Copy + 'static {
   pub fn view<R0, R1, R2>(self, r0: R0, r1: R1, r2: R2) -> MemArrayView<'a, [usize; 3], T>
   where R0: RangeArgument<usize>,
         R1: RangeArgument<usize>,
@@ -340,7 +358,7 @@ impl<'a, T> MemArrayView<'a, [usize; 3], T> where T: Copy + 'static {
   }
 }
 
-impl<'a, T> MemArrayView<'a, [usize; 4], T> where T: Copy + 'static {
+impl<'a, T> MemArrayView4d<'a, T> where T: Copy + 'static {
   pub fn view<R0, R1, R2, R3>(self, r0: R0, r1: R1, r2: R2, r3: R3) -> MemArrayView<'a, [usize; 4], T>
   where R0: RangeArgument<usize>,
         R1: RangeArgument<usize>,
@@ -416,7 +434,15 @@ impl<'a, Idx, T> MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 's
   }
 }
 
-impl<'a, T> MemArrayViewMut<'a, usize, T> where T: Copy + 'static {
+impl<'a, T> MemArrayViewMut1d<'a, T> where T: Copy + 'static {
+  pub fn as_slice(&self) -> &[T] {
+    self.flat_slice().unwrap()
+  }
+
+  pub fn as_mut_slice(&mut self) -> &mut [T] {
+    self.flat_slice_mut().unwrap()
+  }
+
   pub fn view_mut<R>(self, r: R) -> MemArrayViewMut<'a, usize, T>
   where R: RangeArgument<usize>,
   {
@@ -432,7 +458,7 @@ impl<'a, T> MemArrayViewMut<'a, usize, T> where T: Copy + 'static {
   }
 }
 
-impl<'a, T> MemArrayViewMut<'a, [usize; 2], T> where T: Copy + 'static {
+impl<'a, T> MemArrayViewMut2d<'a, T> where T: Copy + 'static {
   pub fn view_mut<R0, R1>(self, r0: R0, r1: R1) -> MemArrayViewMut<'a, [usize; 2], T>
   where R0: RangeArgument<usize>,
         R1: RangeArgument<usize>,
@@ -449,7 +475,7 @@ impl<'a, T> MemArrayViewMut<'a, [usize; 2], T> where T: Copy + 'static {
   }
 }
 
-impl<'a, T> MemArrayViewMut<'a, [usize; 3], T> where T: Copy + 'static {
+impl<'a, T> MemArrayViewMut3d<'a, T> where T: Copy + 'static {
   pub fn view_mut<R0, R1, R2>(self, r0: R0, r1: R1, r2: R2) -> MemArrayViewMut<'a, [usize; 3], T>
   where R0: RangeArgument<usize>,
         R1: RangeArgument<usize>,
@@ -467,7 +493,7 @@ impl<'a, T> MemArrayViewMut<'a, [usize; 3], T> where T: Copy + 'static {
   }
 }
 
-impl<'a, T> MemArrayViewMut<'a, [usize; 4], T> where T: Copy + 'static {
+impl<'a, T> MemArrayViewMut4d<'a, T> where T: Copy + 'static {
   pub fn view_mut<R0, R1, R2, R3>(self, r0: R0, r1: R1, r2: R2, r3: R3) -> MemArrayViewMut<'a, [usize; 4], T>
   where R0: RangeArgument<usize>,
         R1: RangeArgument<usize>,
@@ -486,7 +512,7 @@ impl<'a, T> MemArrayViewMut<'a, [usize; 4], T> where T: Copy + 'static {
   }
 }
 
-pub struct RWMemArray<Idx, T> where T: Copy {
+/*pub struct RWMemArray<Idx, T> where T: Copy {
   size:     Idx,
   offset:   Idx,
   stride:   Idx,
@@ -506,4 +532,4 @@ pub trait MemArrayZeros: Array {
 
 pub trait MemBatchArrayZeros: Array {
   fn zeros(size: Self::Idx, batch_size: usize) -> Self where Self: Sized;
-}
+}*/
