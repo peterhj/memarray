@@ -242,8 +242,8 @@ pub type MemOuterBatchArray4d<T> = MemOuterBatchArray<Index4d, T>;
 impl<Idx, T> MemOuterBatchArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   pub fn as_view<'a>(&'a self) -> MemArrayView<'a, <Idx as ArrayIndex>::Above, T> {
     MemArrayView{
-      size:     self.size.append(self.batch_sz),
-      offset:   self.offset.append(0),
+      size:     self.size.index_append(self.batch_sz),
+      offset:   self.offset.index_append(0),
       stride:   self.stride.stride_append_packed(self.batch_sz),
       mem:      &self.mem,
     }
@@ -251,8 +251,8 @@ impl<Idx, T> MemOuterBatchArray<Idx, T> where Idx: ArrayIndex, T: Copy {
 
   pub fn as_view_mut<'a>(&'a mut self) -> MemArrayViewMut<'a, <Idx as ArrayIndex>::Above, T> {
     MemArrayViewMut{
-      size:     self.size.append(self.batch_sz),
-      offset:   self.offset.append(0),
+      size:     self.size.index_append(self.batch_sz),
+      offset:   self.offset.index_append(0),
       stride:   self.stride.stride_append_packed(self.batch_sz),
       mem:      &mut self.mem,
     }
