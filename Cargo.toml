@@ -19,4 +19,4 @@ bindgen = "*"
 arrayidx = { path = "../arrayidx" }
 byteorder = "*"
 float = { path = "../libfloat" }
-parking_lot = "*"
+#parking_lot = "*"
