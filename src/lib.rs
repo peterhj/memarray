@@ -136,7 +136,7 @@ pub trait Shape {
   fn shape(&self) -> Self::Shape;
 }
 
-pub trait Array {
+pub trait Array: Shape {
   type Idx: ArrayIndex;
 
   fn size(&self) -> Self::Idx;
@@ -165,9 +165,7 @@ pub trait BatchArray: Array {
   fn set_batch_size(&mut self, new_batch_sz: usize);
 }
 
-pub trait ZerosShape {
-  type Shape;
-
+pub trait ZerosShape: Shape {
   fn zeros(size: Self::Shape) -> Self where Self: Sized;
 }
 
@@ -200,7 +198,7 @@ pub type MemArray4d<T> = MemArray<Index4d, T>;
 }*/
 
 impl<Idx, T> ZerosShape for MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
-  type Shape = Idx;
+  //type Shape = Idx;
 
   fn zeros(size: Self::Shape) -> Self {
     let stride = size.to_packed_stride();
@@ -214,6 +212,14 @@ impl<Idx, T> ZerosShape for MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits 
       mem:      mem,
       _mrk:     PhantomData,
     }
+  }
+}
+
+impl<Idx, T> Shape for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+  type Shape = Idx;
+
+  fn shape(&self) -> Idx {
+    self.size.clone()
   }
 }
 
@@ -339,6 +345,14 @@ pub type MemArrayView2d<'a, T> = MemArrayView<'a, Index2d, T>;
 pub type MemArrayView3d<'a, T> = MemArrayView<'a, Index3d, T>;
 pub type MemArrayView4d<'a, T> = MemArrayView<'a, Index4d, T>;
 
+impl<'a, Idx, T> Shape for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
+  type Shape = Idx;
+
+  fn shape(&self) -> Idx {
+    self.size.clone()
+  }
+}
+
 impl<'a, Idx, T> Array for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
   type Idx = Idx;
 
@@ -462,6 +476,14 @@ pub type MemArrayViewMut1d<'a, T> = MemArrayViewMut<'a, Index1d, T>;
 pub type MemArrayViewMut2d<'a, T> = MemArrayViewMut<'a, Index2d, T>;
 pub type MemArrayViewMut3d<'a, T> = MemArrayViewMut<'a, Index3d, T>;
 pub type MemArrayViewMut4d<'a, T> = MemArrayViewMut<'a, Index4d, T>;
+
+impl<'a, Idx, T> Shape for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
+  type Shape = Idx;
+
+  fn shape(&self) -> Idx {
+    self.size.clone()
+  }
+}
 
 impl<'a, Idx, T> Array for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
   type Idx = Idx;
