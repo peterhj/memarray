@@ -191,6 +191,7 @@ pub type MemArray1d<T> = MemArray<Index1d, T>;
 pub type MemArray2d<T> = MemArray<Index2d, T>;
 pub type MemArray3d<T> = MemArray<Index3d, T>;
 pub type MemArray4d<T> = MemArray<Index4d, T>;
+pub type MemArray5d<T> = MemArray<Index5d, T>;
 
 /*impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
   pub fn zeros(size: Idx) -> Self {
