@@ -22,11 +22,9 @@ limitations under the License.
 extern crate arrayidx;
 extern crate byteorder;
 extern crate float;
-//extern crate parking_lot;
 
 use arrayidx::*;
 use float::stub::{f16_stub};
-//use parking_lot::{RwLock};
 
 use std::alloc::{Alloc, Global};
 use std::cell::{RefCell};
