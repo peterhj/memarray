@@ -1,4 +1,4 @@
-extern crate bindgen;
+#[cfg(feature = "mkl")] extern crate bindgen;
 
 use std::env;
 use std::fs;
@@ -7,7 +7,7 @@ use std::path::{PathBuf};
 fn main() {
   let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-  if cfg!(feature = "mkl") {
+  #[cfg(feature = "mkl")] {
     let mkl_dir = PathBuf::from(match env::var("MKL_HOME") {
       Ok(path) => path,
       Err(_) => match env::var("MKLROOT") {

@@ -9,11 +9,11 @@ path = "src/lib.rs"
 
 [features]
 default = []
-mkl = []
-#mkl_gnu = []
+mkl = ["bindgen"]
+#mkl_gnu = ["bindgen"]
 
 [build-dependencies]
-bindgen = "*"
+bindgen = { version = "*", optional = true }
 
 [dependencies]
 arrayidx = { path = "../arrayidx" }
