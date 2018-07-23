@@ -16,11 +16,11 @@ limitations under the License.
 
 use byteorder::*;
 
-use std::collections::{BTreeMap};
+//use std::collections::{BTreeMap};
 use std::io::{Read, Write};
 use std::str::{from_utf8};
 
-pub trait NpySerialize {
+/*pub trait NpySerialize {
   fn deserialize(reader: &mut Read) -> Self;
   fn serialize(&self, writer: &mut Write);
 }
@@ -45,6 +45,10 @@ impl NpySerialize for NpyArray {
     // TODO
     unimplemented!();
   }
+}*/
+
+pub trait NpyIo {
+  fn deserialize<R: Read + ?Sized>(reader: &mut R) -> Result<Self, ()> where Self: Sized;
 }
 
 pub enum NpyEndianness {
@@ -65,10 +69,21 @@ pub enum NpyDtype {
   UInt64,
 }
 
+pub struct NpyDtypeDesc {
+  pub dtype:    Option<NpyDtype>,
+}
+
+impl NpyDtypeDesc {
+  pub fn parse(desc: &str) -> Result<Self, ()> {
+    // TODO
+    unimplemented!("NpyDtype: unhandled desc str: {}", desc);
+  }
+}
+
 pub struct NpyHeader {
-  dtype_desc:   (NpyEndianness, NpyDtype),
+  dtype_desc:   NpyDtypeDesc,
   col_major:    bool,
-  c_shape:      Vec<usize>,
+  nd_size:      Vec<usize>,
   data_offset:  usize,
 }
 
@@ -87,18 +102,35 @@ pub fn read_npy_header<R>(reader: &mut R) -> Result<NpyHeader, ()> where R: Read
     return Err(());
   }
   let header_len = reader.read_u16::<LittleEndian>().unwrap() as usize;
+  let data_offset = 10 + header_len;
+  assert_eq!(data_offset % 64, 0);
   let mut header = Vec::with_capacity(header_len);
   for _ in 0 .. header_len {
     header.push(0);
   }
   reader.read_exact(&mut header).unwrap();
-  assert_eq!((10 + header_len) % 16, 0);
   let header_toks: Vec<_> = from_utf8(&header).unwrap().split_whitespace().collect();
   assert_eq!(header_toks[0], "{'descr':");
   assert_eq!(header_toks[2], "'fortran_order':");
   assert_eq!(header_toks[4], "'shape':");
-  // TODO
-  unimplemented!();
+  let dtype_desc = NpyDtypeDesc::parse(header_toks[1]).unwrap();
+  let col_major: bool = header_toks[3].to_lowercase().parse().unwrap();
+  let mut nd_size = vec![];
+  let mut shape_toks: Vec<_> = header_toks[5].split_whitespace().collect();
+  for shape_tok in shape_toks.iter() {
+    let shape_tok = shape_tok.replace("(", "").replace(",", "");
+    let d: usize = shape_tok.parse().unwrap();
+    nd_size.push(d);
+  }
+  if !col_major {
+    nd_size.reverse();
+  }
+  Ok(NpyHeader{
+    dtype_desc,
+    col_major,
+    nd_size,
+    data_offset,
+  })
 }
 
 pub fn write_npy_header<W>(header: &NpyHeader, writer: &mut W) -> Result<(), ()> where W: Write {
@@ -106,7 +138,7 @@ pub fn write_npy_header<W>(header: &NpyHeader, writer: &mut W) -> Result<(), ()>
   unimplemented!();
 }
 
-pub struct NkvArchive {
+/*pub struct NkvArchive {
   kvs:  BTreeMap<String, NpyArray>,
 }
 
@@ -147,4 +179,4 @@ pub fn write_nkv_header<W>(archive: &NkvArchive, writer: &mut W) -> Result<NkvHe
     hlen: header_len as _,
     kvs:  kvoffsets,
   })
-}
+}*/

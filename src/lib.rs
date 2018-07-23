@@ -37,8 +37,8 @@ use std::slice::{from_raw_parts, from_raw_parts_mut};
 use std::sync::{Arc};
 
 pub mod ffi;
+pub mod io;
 pub mod linalg;
-pub mod serial;
 
 fn i2idx(i: isize, len: usize) -> usize {
   let u = i as usize;
