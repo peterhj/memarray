@@ -81,10 +81,10 @@ impl NpyDtypeDesc {
 }
 
 pub struct NpyHeader {
-  dtype_desc:   NpyDtypeDesc,
-  col_major:    bool,
-  nd_size:      Vec<usize>,
-  data_offset:  usize,
+  pub dtype_desc:   NpyDtypeDesc,
+  pub col_major:    bool,
+  pub nd_size:      Vec<usize>,
+  pub data_offset:  usize,
 }
 
 pub fn read_npy_header<R>(reader: &mut R) -> Result<NpyHeader, ()> where R: Read {

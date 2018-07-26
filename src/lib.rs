@@ -211,17 +211,10 @@ pub type MemArray3d<T> = MemArray<Index3d, T>;
 pub type MemArray4d<T> = MemArray<Index4d, T>;
 pub type MemArray5d<T> = MemArray<Index5d, T>;
 
-/*impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
-  pub fn zeros(size: Idx) -> Self {
-  }
-}*/
-
-impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
-  pub fn zeros(size: Idx) -> Self {
+impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
+  pub fn with_memory(size: Idx, mem: M) -> Self {
+    assert_eq!(size.flat_len(), mem.as_slice().len());
     let stride = size.to_packed_stride();
-    let mem = unsafe { HeapMem::<T>::alloc(size.flat_len()) };
-    // The memory is uninitialized, zero it using memset.
-    unsafe { write_bytes::<T>(mem.buf, 0, mem.len) };
     MemArray{
       size:     size,
       offset:   Idx::zero(),
@@ -232,7 +225,28 @@ impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
   }
 }
 
-impl<Idx, T> Shape for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+/*impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits {
+  pub fn zeros(size: Idx) -> Self {
+  }
+}*/
+
+impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits {
+  pub fn zeros(size: Idx) -> Self {
+    let mem = unsafe { HeapMem::<T>::alloc(size.flat_len()) };
+    // The memory is uninitialized, zero it using memset.
+    unsafe { write_bytes::<T>(mem.buf, 0, mem.len) };
+    let stride = size.to_packed_stride();
+    MemArray{
+      size:     size,
+      offset:   Idx::zero(),
+      stride:   stride,
+      mem:      mem,
+      _mrk:     PhantomData,
+    }
+  }
+}
+
+impl<Idx, T, M> Shape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
   type Shape = Idx;
 
   fn shape(&self) -> Idx {
@@ -240,7 +254,7 @@ impl<Idx, T> Shape for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
-impl<Idx, T> Array for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+impl<Idx, T, M> Array for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
   type Idx = Idx;
 
   fn size(&self) -> Idx {
@@ -248,7 +262,7 @@ impl<Idx, T> Array for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
-impl<Idx, T> DenseArray for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+impl<Idx, T, M> DenseArray for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
   fn offset(&self) -> Idx {
     self.offset.clone()
   }
@@ -258,7 +272,7 @@ impl<Idx, T> DenseArray for MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
-impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
+impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
   /*pub unsafe fn as_ptr(&self) -> *const T {
     self.mem.as_ptr().offset(self.flat_offset() as _)
   }
@@ -314,7 +328,7 @@ impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: Copy {
   }
 }
 
-pub struct MemOuterBatchArray<Idx, T> where T: Copy {
+/*pub struct MemOuterBatchArray<Idx, T> where T: Copy {
   size:     Idx,
   offset:   Idx,
   stride:   Idx,
@@ -347,7 +361,7 @@ impl<Idx, T> MemOuterBatchArray<Idx, T> where Idx: ArrayIndex, T: Copy {
       mem:      &mut self.mem,
     }
   }
-}
+}*/
 
 pub struct MemArrayView<'a, Idx, T> where /*Idx: 'static,*/ T: Copy + 'static {
   size:     Idx,
