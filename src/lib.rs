@@ -281,6 +281,14 @@ impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
     self.mem.as_mut_ptr().offset(self.flat_offset() as _)
   }*/
 
+  pub fn memory(&self) -> &M {
+    &self.mem
+  }
+
+  pub fn memory_mut(&mut self) -> &mut M {
+    &mut self.mem
+  }
+
   pub fn as_view<'a>(&'a self) -> MemArrayView<'a, Idx, T> {
     MemArrayView{
       size:     self.size.clone(),
