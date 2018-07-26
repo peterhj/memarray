@@ -22,9 +22,11 @@ limitations under the License.
 extern crate arrayidx;
 extern crate byteorder;
 extern crate float;
+extern crate sharedmem;
 
 use arrayidx::*;
 use float::stub::{f16_stub};
+use sharedmem::{SharedMem};
 
 use std::alloc::{Alloc, Global};
 use std::cell::{RefCell};
@@ -57,6 +59,24 @@ pub trait Mem<T> where T: Copy {
   unsafe fn as_mut_ptr(&mut self) -> *mut T;
   fn as_slice(&self) -> &[T];
   fn as_mut_slice(&mut self) -> &mut [T];
+}
+
+impl<T> Mem<T> for SharedMem<T> where T: Copy {
+  unsafe fn as_ptr(&self) -> *const T {
+    self.as_slice().as_ptr()
+  }
+
+  unsafe fn as_mut_ptr(&mut self) -> *mut T {
+    panic!();
+  }
+
+  fn as_slice(&self) -> &[T] {
+    &*self
+  }
+
+  fn as_mut_slice(&mut self) -> &mut [T] {
+    panic!();
+  }
 }
 
 pub struct HeapMem<T> where T: Copy {
@@ -163,9 +183,9 @@ pub trait BatchArray: Array {
   fn set_batch_size(&mut self, new_batch_sz: usize);
 }
 
-pub trait ZerosShape: Shape {
+/*pub trait ZerosShape: Shape {
   fn zeros(size: Self::Shape) -> Self where Self: Sized;
-}
+}*/
 
 /*pub trait MemArrayZeros: Array {
   fn zeros(size: Self::Idx) -> Self where Self: Sized;
@@ -196,10 +216,8 @@ pub type MemArray5d<T> = MemArray<Index5d, T>;
   }
 }*/
 
-impl<Idx, T> ZerosShape for MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
-  //type Shape = Idx;
-
-  fn zeros(size: Self::Shape) -> Self {
+impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits + Copy {
+  pub fn zeros(size: Idx) -> Self {
     let stride = size.to_packed_stride();
     let mem = unsafe { HeapMem::<T>::alloc(size.flat_len()) };
     // The memory is uninitialized, zero it using memset.

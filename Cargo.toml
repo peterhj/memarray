@@ -19,3 +19,4 @@ bindgen = { version = "*", optional = true }
 arrayidx = { path = "../arrayidx" }
 byteorder = "*"
 float = { path = "../float" }
+sharedmem = { path = "../sharedmem" }
