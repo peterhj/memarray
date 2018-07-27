@@ -51,11 +51,13 @@ pub trait NpyIo {
   fn deserialize<R: Read + ?Sized>(reader: &mut R) -> Result<Self, ()> where Self: Sized;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NpyEndianness {
   Little,
   Big,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NpyDtype {
   Float32,
   Float64,
@@ -69,14 +71,56 @@ pub enum NpyDtype {
   UInt64,
 }
 
+pub trait ToNpyDtypeDesc {
+  fn to_npy_dtype_desc() -> NpyDtypeDesc;
+}
+
+impl ToNpyDtypeDesc for u8 {
+  fn to_npy_dtype_desc() -> NpyDtypeDesc {
+    NpyDtypeDesc{
+      endian:   None,
+      dtype:    NpyDtype::UInt8,
+    }
+  }
+}
+
+impl ToNpyDtypeDesc for f32 {
+  fn to_npy_dtype_desc() -> NpyDtypeDesc {
+    NpyDtypeDesc{
+      endian:   Some(NpyEndianness::Little), // FIXME: native endianness.
+      dtype:    NpyDtype::Float32,
+    }
+  }
+}
+
+impl ToNpyDtypeDesc for f64 {
+  fn to_npy_dtype_desc() -> NpyDtypeDesc {
+    NpyDtypeDesc{
+      endian:   Some(NpyEndianness::Little), // FIXME: native endianness.
+      dtype:    NpyDtype::Float64,
+    }
+  }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct NpyDtypeDesc {
-  pub dtype:    Option<NpyDtype>,
+  pub endian:   Option<NpyEndianness>,
+  pub dtype:    NpyDtype,
 }
 
 impl NpyDtypeDesc {
   pub fn parse(desc: &str) -> Result<Self, ()> {
-    // TODO
-    unimplemented!("NpyDtype: unhandled desc str: {}", desc);
+    let (endian, dtype) = match desc {
+      "'|u1'," => (None,                        NpyDtype::UInt8),
+      "'<f4'," => (Some(NpyEndianness::Little), NpyDtype::Float32),
+      "'<f8'," => (Some(NpyEndianness::Little), NpyDtype::Float64),
+      _ => unimplemented!("NpyDtypeDesc: unhandled str: {}", desc),
+    };
+    Ok(NpyDtypeDesc{endian, dtype})
+  }
+
+  pub fn matches<T: ToNpyDtypeDesc>(&self) -> bool {
+    *self == T::to_npy_dtype_desc()
   }
 }
 
