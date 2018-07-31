@@ -148,15 +148,20 @@ pub fn read_npy_header<R>(reader: &mut R) -> Result<NpyHeader, ()> where R: Read
   for _ in 0 .. 6 {
     magicnum.push(0);
   }
-  reader.read_exact(&mut magicnum).unwrap();
+  match reader.read_exact(&mut magicnum) {
+    Err(_) => panic!("read_npy_header: failed to verify magicnum"),
+    Ok(_) => {}
+  }
   if &magicnum != b"\x93NUMPY" {
     return Err(());
   }
+  //println!("DEBUG: read_npy_header: parse version bytes...");
   let major_ver = reader.read_u8().unwrap();
   let minor_ver = reader.read_u8().unwrap();
   if (major_ver, minor_ver) != (1, 0) {
     return Err(());
   }
+  //println!("DEBUG: read_npy_header: parse header len...");
   let header_len = reader.read_u16::<LittleEndian>().unwrap() as usize;
   let data_offset = 10 + header_len;
   assert_eq!(data_offset % 64, 0);
@@ -164,23 +169,28 @@ pub fn read_npy_header<R>(reader: &mut R) -> Result<NpyHeader, ()> where R: Read
   for _ in 0 .. header_len {
     header.push(0);
   }
+  //println!("DEBUG: read_npy_header: read header...");
   reader.read_exact(&mut header).unwrap();
   let header_toks: Vec<_> = from_utf8(&header).unwrap().split_whitespace().collect();
+  //println!("DEBUG: read_npy_header: got header toks: {:?}", &header_toks);
   assert_eq!(header_toks[0], "{'descr':");
   assert_eq!(header_toks[2], "'fortran_order':");
   assert_eq!(header_toks[4], "'shape':");
   let dtype_desc = NpyDtypeDesc::parse(header_toks[1]).unwrap();
-  let col_major: bool = header_toks[3].to_lowercase().parse().unwrap();
+  let col_major: bool = header_toks[3].replace(",", "").to_lowercase().parse().unwrap();
   let mut nd_size = vec![];
-  let mut shape_toks: Vec<_> = header_toks[5].split_whitespace().collect();
-  for shape_tok in shape_toks.iter() {
-    let shape_tok = shape_tok.replace("(", "").replace(",", "");
+  for shape_tok in header_toks[5 .. ].iter() {
+    if &"}" == shape_tok {
+      break;
+    }
+    let shape_tok = shape_tok.replace("(", "").replace(")", "").replace(",", "");
     let d: usize = shape_tok.parse().unwrap();
     nd_size.push(d);
   }
   if !col_major {
     nd_size.reverse();
   }
+  //println!("DEBUG: read_npy_header: got size: {:?}", &nd_size);
   Ok(NpyHeader{
     dtype_desc,
     col_major,
