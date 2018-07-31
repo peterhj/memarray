@@ -57,6 +57,18 @@ pub enum NpyEndianness {
   Big,
 }
 
+impl NpyEndianness {
+  #[cfg(target_endian = "little")]
+  pub fn native() -> Self {
+    NpyEndianness::Little
+  }
+
+  #[cfg(target_endian = "big")]
+  pub fn native() -> Self {
+    NpyEndianness::Big
+  }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NpyDtype {
   Float32,
@@ -87,7 +99,7 @@ impl ToNpyDtypeDesc for u8 {
 impl ToNpyDtypeDesc for f32 {
   fn to_npy_dtype_desc() -> NpyDtypeDesc {
     NpyDtypeDesc{
-      endian:   Some(NpyEndianness::Little), // FIXME: native endianness.
+      endian:   Some(NpyEndianness::native()),
       dtype:    NpyDtype::Float32,
     }
   }
@@ -96,7 +108,7 @@ impl ToNpyDtypeDesc for f32 {
 impl ToNpyDtypeDesc for f64 {
   fn to_npy_dtype_desc() -> NpyDtypeDesc {
     NpyDtypeDesc{
-      endian:   Some(NpyEndianness::Little), // FIXME: native endianness.
+      endian:   Some(NpyEndianness::native()),
       dtype:    NpyDtype::Float64,
     }
   }
