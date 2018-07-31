@@ -195,6 +195,7 @@ pub trait MemBatchArrayZeros: Array {
   fn zeros(size: Self::Idx, batch_size: usize) -> Self where Self: Sized;
 }*/
 
+#[derive(Clone)]
 pub struct MemArray<Idx, T, M=HeapMem<T>> where T: Copy, M: Mem<T> {
   size:     Idx,
   offset:   Idx,
