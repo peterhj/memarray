@@ -212,6 +212,9 @@ pub type MemArray3d<T> = MemArray<Index3d, T>;
 pub type MemArray4d<T> = MemArray<Index4d, T>;
 pub type MemArray5d<T> = MemArray<Index5d, T>;
 
+unsafe impl<Idx, T, M> Send for MemArray<Idx, T, M> where T: Copy, M: Mem<T> + Send + Sync {}
+unsafe impl<Idx, T, M> Sync for MemArray<Idx, T, M> where T: Copy, M: Mem<T> + Send + Sync {}
+
 impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
   pub fn with_memory(size: Idx, mem: M) -> Self {
     assert_eq!(size.flat_len(), mem.as_slice().len());
