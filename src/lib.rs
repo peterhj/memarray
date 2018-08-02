@@ -153,6 +153,9 @@ pub trait Shape {
   type Shape: Eq + Debug;
 
   fn shape(&self) -> Self::Shape;
+}
+
+pub trait SetShape: Shape {
   fn set_shape(&mut self, new_shape: Self::Shape);
 }
 
@@ -250,7 +253,9 @@ impl<Idx, T, M> Shape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M:
   fn shape(&self) -> Idx {
     self.size.clone()
   }
+}
 
+impl<Idx, T, M> SetShape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
   fn set_shape(&mut self, new_size: Idx) {
     // FIXME
     unimplemented!();
@@ -393,11 +398,6 @@ impl<'a, Idx, T> Shape for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Co
   fn shape(&self) -> Idx {
     self.size.clone()
   }
-
-  fn set_shape(&mut self, new_size: Idx) {
-    // FIXME
-    unimplemented!();
-  }
 }
 
 impl<'a, Idx, T> Array for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
@@ -529,11 +529,6 @@ impl<'a, Idx, T> Shape for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T:
 
   fn shape(&self) -> Idx {
     self.size.clone()
-  }
-
-  fn set_shape(&mut self, new_size: Idx) {
-    // FIXME
-    unimplemented!();
   }
 }
 
