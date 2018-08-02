@@ -30,6 +30,7 @@ use sharedmem::{SharedMem};
 
 use std::alloc::{Alloc, Global};
 use std::cell::{RefCell};
+use std::fmt::{Debug};
 use std::marker::{PhantomData};
 use std::mem::{size_of};
 use std::ops::{RangeBounds};
@@ -149,9 +150,10 @@ impl ZeroBits for f32 {}
 impl ZeroBits for f64 {}
 
 pub trait Shape {
-  type Shape;
+  type Shape: Eq + Debug;
 
   fn shape(&self) -> Self::Shape;
+  fn set_shape(&mut self, new_shape: Self::Shape);
 }
 
 pub trait Array: Shape {
@@ -185,14 +187,6 @@ pub trait BatchArray: Array {
 
 /*pub trait ZerosShape: Shape {
   fn zeros(size: Self::Shape) -> Self where Self: Sized;
-}*/
-
-/*pub trait MemArrayZeros: Array {
-  fn zeros(size: Self::Idx) -> Self where Self: Sized;
-}
-
-pub trait MemBatchArrayZeros: Array {
-  fn zeros(size: Self::Idx, batch_size: usize) -> Self where Self: Sized;
 }*/
 
 #[derive(Clone)]
@@ -255,6 +249,11 @@ impl<Idx, T, M> Shape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M:
 
   fn shape(&self) -> Idx {
     self.size.clone()
+  }
+
+  fn set_shape(&mut self, new_size: Idx) {
+    // FIXME
+    unimplemented!();
   }
 }
 
@@ -394,6 +393,11 @@ impl<'a, Idx, T> Shape for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Co
   fn shape(&self) -> Idx {
     self.size.clone()
   }
+
+  fn set_shape(&mut self, new_size: Idx) {
+    // FIXME
+    unimplemented!();
+  }
 }
 
 impl<'a, Idx, T> Array for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
@@ -525,6 +529,11 @@ impl<'a, Idx, T> Shape for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T:
 
   fn shape(&self) -> Idx {
     self.size.clone()
+  }
+
+  fn set_shape(&mut self, new_size: Idx) {
+    // FIXME
+    unimplemented!();
   }
 }
 
