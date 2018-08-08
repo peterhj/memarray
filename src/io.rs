@@ -14,40 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+use ::{Mem, ZeroBits, MemArray};
+
+use arrayidx::{ArrayIndex};
 use byteorder::*;
 
-//use std::collections::{BTreeMap};
 use std::io::{Read, Write};
 use std::str::{from_utf8};
 
-/*pub trait NpySerialize {
-  fn deserialize(reader: &mut Read) -> Self;
-  fn serialize(&self, writer: &mut Write);
-}
-
-pub struct NpyArray {
-}
-
-impl NpyArray {
-  pub fn flat_len(&self) -> usize {
-    // TODO
-    unimplemented!();
-  }
-}
-
-impl NpySerialize for NpyArray {
-  fn deserialize(reader: &mut Read) -> Self {
-    // TODO
-    unimplemented!();
-  }
-
-  fn serialize(&self, writer: &mut Write) {
-    // TODO
-    unimplemented!();
-  }
-}*/
-
-pub trait NpyIo {
+pub trait NpyArrayIo<Idx, T> {
   fn deserialize<R: Read + ?Sized>(reader: &mut R) -> Result<Self, ()> where Self: Sized;
 }
 
@@ -143,7 +118,7 @@ pub struct NpyHeader {
   pub data_offset:  usize,
 }
 
-pub fn read_npy_header<R>(reader: &mut R) -> Result<NpyHeader, ()> where R: Read {
+pub fn read_npy_header<R: Read + ?Sized>(reader: &mut R) -> Result<NpyHeader, ()> {
   let mut magicnum = Vec::with_capacity(6);
   for _ in 0 .. 6 {
     magicnum.push(0);
@@ -199,50 +174,26 @@ pub fn read_npy_header<R>(reader: &mut R) -> Result<NpyHeader, ()> where R: Read
   })
 }
 
-pub fn write_npy_header<W>(header: &NpyHeader, writer: &mut W) -> Result<(), ()> where W: Write {
+pub fn write_npy_header<W: Write + ?Sized>(header: &NpyHeader, writer: &mut W) -> Result<(), ()> {
   // TODO
   unimplemented!();
 }
 
-/*pub struct NkvArchive {
-  kvs:  BTreeMap<String, NpyArray>,
+impl<Idx, T> NpyArrayIo<Idx, T> for MemArray<Idx, T> where Idx: ArrayIndex, T: ToNpyDtypeDesc + ZeroBits {
+  fn deserialize<R: Read + ?Sized>(reader: &mut R) -> Result<Self, ()> {
+    let header = {
+      match read_npy_header(reader) {
+        Err(_) => panic!(),
+        Ok(header) => header,
+      }
+    };
+    assert!(header.dtype_desc.matches::<T>());
+    let size = <Idx as ArrayIndex>::from_nd(header.nd_size);
+    let mut arr = MemArray::zeros(size);
+    match reader.read_exact(arr.memory_mut().as_mut_bytes()) {
+      Err(_) => panic!(),
+      Ok(_) => {}
+    }
+    Ok(arr)
+  }
 }
-
-pub struct NkvHeader {
-  hlen: u32,
-  kvs:  BTreeMap<String, (u64, u64)>,
-}
-
-pub fn write_nkv_header<W>(archive: &NkvArchive, writer: &mut W) -> Result<NkvHeader, ()> where W: Write {
-  let magicnum = b"\x93NUMKV";
-  writer.write_all(magicnum).unwrap();
-  let (major_ver, minor_ver) = (2, 0);
-  writer.write_u8(major_ver).unwrap();
-  writer.write_u8(minor_ver).unwrap();
-  let mut unpadded_header_len = 4;
-  for (key, _) in archive.kvs.iter() {
-    let key_len = key.as_bytes().len();
-    unpadded_header_len += key_len + 20;
-  }
-  let header_len = (12 + unpadded_header_len + 16 - 1) / 16 * 16 - 12;
-  writer.write_u32::<LittleEndian>(header_len as _).unwrap();
-  writer.write_u32::<LittleEndian>(archive.kvs.len() as _).unwrap();
-  let mut offset = 12 + header_len;
-  let mut kvoffsets = BTreeMap::new();
-  for (key, ref value) in archive.kvs.iter() {
-    let value_len = value.flat_len();
-    writer.write_u32::<LittleEndian>(key.as_bytes().len() as _).unwrap();
-    writer.write_all(key.as_bytes()).unwrap();
-    writer.write_u64::<LittleEndian>(offset as _).unwrap();
-    writer.write_u64::<LittleEndian>(value_len as _).unwrap();
-    kvoffsets.insert(key.clone(), (offset as _, value_len as _));
-    offset += (value_len + 16 - 1) / 16 * 16;
-  }
-  for _ in 0 .. header_len - unpadded_header_len {
-    writer.write_u8(0).unwrap();
-  }
-  Ok(NkvHeader{
-    hlen: header_len as _,
-    kvs:  kvoffsets,
-  })
-}*/

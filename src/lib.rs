@@ -55,28 +55,29 @@ fn i2idx(i: isize, len: usize) -> usize {
   panic!();
 }
 
-pub trait Mem<T> where T: Copy {
+pub trait ReadOnlyMem<T> where T: Copy {
   unsafe fn as_ptr(&self) -> *const T;
-  unsafe fn as_mut_ptr(&mut self) -> *mut T;
   fn as_slice(&self) -> &[T];
-  fn as_mut_slice(&mut self) -> &mut [T];
+  fn as_bytes(&self) -> &[u8];
 }
 
-impl<T> Mem<T> for SharedMem<T> where T: Copy {
+pub trait Mem<T>: ReadOnlyMem<T> where T: Copy {
+  unsafe fn as_mut_ptr(&mut self) -> *mut T;
+  fn as_mut_slice(&mut self) -> &mut [T];
+  fn as_mut_bytes(&mut self) -> &mut [u8];
+}
+
+impl<T> ReadOnlyMem<T> for SharedMem<T> where T: Copy {
   unsafe fn as_ptr(&self) -> *const T {
     self.as_slice().as_ptr()
-  }
-
-  unsafe fn as_mut_ptr(&mut self) -> *mut T {
-    panic!();
   }
 
   fn as_slice(&self) -> &[T] {
     &*self
   }
 
-  fn as_mut_slice(&mut self) -> &mut [T] {
-    panic!();
+  fn as_bytes(&self) -> &[u8] {
+    unimplemented!();
   }
 }
 
@@ -113,12 +114,8 @@ impl<T> HeapMem<T> where T: Copy {
   }
 }
 
-impl<T> Mem<T> for HeapMem<T> where T: Copy {
+impl<T> ReadOnlyMem<T> for HeapMem<T> where T: Copy {
   unsafe fn as_ptr(&self) -> *const T {
-    self.buf
-  }
-
-  unsafe fn as_mut_ptr(&mut self) -> *mut T {
     self.buf
   }
 
@@ -126,8 +123,22 @@ impl<T> Mem<T> for HeapMem<T> where T: Copy {
     unsafe { from_raw_parts(self.buf, self.len) }
   }
 
+  fn as_bytes(&self) -> &[u8] {
+    unsafe { from_raw_parts(self.buf as _, self.len) }
+  }
+}
+
+impl<T> Mem<T> for HeapMem<T> where T: Copy {
+  unsafe fn as_mut_ptr(&mut self) -> *mut T {
+    self.buf
+  }
+
   fn as_mut_slice(&mut self) -> &mut [T] {
     unsafe { from_raw_parts_mut(self.buf, self.len) }
+  }
+
+  fn as_mut_bytes(&mut self) -> &mut [u8] {
+    unsafe { from_raw_parts_mut(self.buf as _, self.len) }
   }
 }
 
@@ -193,7 +204,7 @@ pub trait BatchArray: Array {
 }*/
 
 #[derive(Clone)]
-pub struct MemArray<Idx, T, M=HeapMem<T>> where T: Copy, M: Mem<T> {
+pub struct MemArray<Idx, T, M=HeapMem<T>> where T: Copy {
   size:     Idx,
   offset:   Idx,
   stride:   Idx,
@@ -209,10 +220,10 @@ pub type MemArray3d<T> = MemArray<Index3d, T>;
 pub type MemArray4d<T> = MemArray<Index4d, T>;
 pub type MemArray5d<T> = MemArray<Index5d, T>;
 
-unsafe impl<Idx, T, M> Send for MemArray<Idx, T, M> where T: Copy, M: Mem<T> + Send + Sync {}
-unsafe impl<Idx, T, M> Sync for MemArray<Idx, T, M> where T: Copy, M: Mem<T> + Send + Sync {}
+unsafe impl<Idx, T, M> Send for MemArray<Idx, T, M> where T: Copy, M: Send + Sync {}
+unsafe impl<Idx, T, M> Sync for MemArray<Idx, T, M> where T: Copy, M: Send + Sync {}
 
-impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
+impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: ReadOnlyMem<T> {
   pub fn with_memory(size: Idx, mem: M) -> Self {
     assert_eq!(size.flat_len(), mem.as_slice().len());
     let stride = size.to_packed_stride();
@@ -247,7 +258,7 @@ impl<Idx, T> MemArray<Idx, T> where Idx: ArrayIndex, T: ZeroBits {
   }
 }
 
-impl<Idx, T, M> Shape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
+impl<Idx, T, M> Shape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy {
   type Shape = Idx;
 
   fn shape(&self) -> Idx {
@@ -255,14 +266,14 @@ impl<Idx, T, M> Shape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M:
   }
 }
 
-impl<Idx, T, M> SetShape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
+impl<Idx, T, M> SetShape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy {
   fn set_shape(&mut self, new_size: Idx) {
     // FIXME
     unimplemented!();
   }
 }
 
-impl<Idx, T, M> Array for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
+impl<Idx, T, M> Array for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy {
   type Idx = Idx;
 
   fn size(&self) -> Idx {
@@ -270,7 +281,7 @@ impl<Idx, T, M> Array for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M:
   }
 }
 
-impl<Idx, T, M> DenseArray for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
+impl<Idx, T, M> DenseArray for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy {
   fn offset(&self) -> Idx {
     self.offset.clone()
   }
@@ -280,21 +291,13 @@ impl<Idx, T, M> DenseArray for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Cop
   }
 }
 
-impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
+impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: ReadOnlyMem<T> {
   /*pub unsafe fn as_ptr(&self) -> *const T {
     self.mem.as_ptr().offset(self.flat_offset() as _)
-  }
-
-  pub unsafe fn as_mut_ptr(&self) -> *mut T {
-    self.mem.as_mut_ptr().offset(self.flat_offset() as _)
   }*/
 
   pub fn memory(&self) -> &M {
     &self.mem
-  }
-
-  pub fn memory_mut(&mut self) -> &mut M {
-    &mut self.mem
   }
 
   pub fn as_view<'a>(&'a self) -> MemArrayView<'a, Idx, T> {
@@ -303,15 +306,6 @@ impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
       offset:   self.offset.clone(),
       stride:   self.stride.clone(),
       mem:      &self.mem,
-    }
-  }
-
-  pub fn as_view_mut<'a>(&'a mut self) -> MemArrayViewMut<'a, Idx, T> {
-    MemArrayViewMut{
-      size:     self.size.clone(),
-      offset:   self.offset.clone(),
-      stride:   self.stride.clone(),
-      mem:      &mut self.mem,
     }
   }
 
@@ -326,6 +320,25 @@ impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
       })
     } else {
       None
+    }
+  }
+}
+
+impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
+  /*pub unsafe fn as_mut_ptr(&self) -> *mut T {
+    self.mem.as_mut_ptr().offset(self.flat_offset() as _)
+  }*/
+
+  pub fn memory_mut(&mut self) -> &mut M {
+    &mut self.mem
+  }
+
+  pub fn as_view_mut<'a>(&'a mut self) -> MemArrayViewMut<'a, Idx, T> {
+    MemArrayViewMut{
+      size:     self.size.clone(),
+      offset:   self.offset.clone(),
+      stride:   self.stride.clone(),
+      mem:      &mut self.mem,
     }
   }
 
@@ -383,7 +396,7 @@ pub struct MemArrayView<'a, Idx, T> where /*Idx: 'static,*/ T: Copy + 'static {
   size:     Idx,
   offset:   Idx,
   stride:   Idx,
-  mem:      &'a Mem<T>,
+  mem:      &'a ReadOnlyMem<T>,
 }
 
 pub type MemArrayView0d<'a, T> = MemArrayView<'a, Index0d, T>;
@@ -547,17 +560,6 @@ impl<'a, Idx, T> DenseArray for MemArrayViewMut<'a, Idx, T> where Idx: ArrayInde
 
   fn stride(&self) -> Idx {
     self.stride.clone()
-  }
-}
-
-impl<'a, Idx, T> Into<MemArrayView<'a, Idx, T>> for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
-  fn into(self) -> MemArrayView<'a, Idx, T> {
-    MemArrayView{
-      size:     self.size,
-      offset:   self.offset,
-      stride:   self.stride,
-      mem:      self.mem,
-    }
   }
 }
 
