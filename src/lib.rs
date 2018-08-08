@@ -21,11 +21,11 @@ limitations under the License.
 
 extern crate arrayidx;
 extern crate byteorder;
-extern crate float;
+#[cfg(feature = "f16")] extern crate float;
 extern crate sharedmem;
 
 use arrayidx::*;
-use float::stub::{f16_stub};
+#[cfg(feature = "f16")] use float::stub::{f16_stub};
 use sharedmem::{SharedMem};
 
 use std::alloc::{Alloc, Global};
@@ -156,7 +156,7 @@ impl ZeroBits for i32 {}
 impl ZeroBits for i64 {}
 impl ZeroBits for isize {}
 
-impl ZeroBits for f16_stub {}
+#[cfg(feature = "f16")] impl ZeroBits for f16_stub {}
 impl ZeroBits for f32 {}
 impl ZeroBits for f64 {}
 
@@ -166,8 +166,8 @@ pub trait Shape {
   fn shape(&self) -> Self::Shape;
 }
 
-pub trait SetShape: Shape {
-  fn set_shape(&mut self, new_shape: Self::Shape);
+pub trait Reshape: Shape {
+  fn reshape(&mut self, new_shape: Self::Shape);
 }
 
 pub trait Array: Shape {
@@ -266,8 +266,8 @@ impl<Idx, T, M> Shape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy {
   }
 }
 
-impl<Idx, T, M> SetShape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy {
-  fn set_shape(&mut self, new_size: Idx) {
+impl<Idx, T, M> Reshape for MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy {
+  fn reshape(&mut self, new_size: Idx) {
     // FIXME
     unimplemented!();
   }

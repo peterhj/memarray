@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [features]
 default = []
+f16 = ["float"]
 mkl = ["bindgen"]
 #mkl_gnu = ["bindgen"]
 
@@ -18,5 +19,5 @@ bindgen = { version = "*", optional = true }
 [dependencies]
 arrayidx = { path = "../arrayidx" }
 byteorder = "*"
-float = { path = "../float" }
+float = { path = "../float", optional = true }
 sharedmem = { path = "../sharedmem" }
