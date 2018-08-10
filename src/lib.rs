@@ -17,7 +17,6 @@ limitations under the License.
 #![feature(allocator_api)]
 #![feature(collections_range)]
 #![feature(ptr_internals)]
-//#![feature(specialization)]
 
 extern crate arrayidx;
 extern crate byteorder;
@@ -220,8 +219,8 @@ pub type MemArray3d<T> = MemArray<Index3d, T>;
 pub type MemArray4d<T> = MemArray<Index4d, T>;
 pub type MemArray5d<T> = MemArray<Index5d, T>;
 
-unsafe impl<Idx, T, M> Send for MemArray<Idx, T, M> where T: Copy, M: Send + Sync {}
-unsafe impl<Idx, T, M> Sync for MemArray<Idx, T, M> where T: Copy, M: Send + Sync {}
+unsafe impl<Idx, T, M> Send for MemArray<Idx, T, M> where Idx: Send + Sync, T: Copy, M: Send + Sync {}
+unsafe impl<Idx, T, M> Sync for MemArray<Idx, T, M> where Idx: Send + Sync, T: Copy, M: Send + Sync {}
 
 impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: ReadOnlyMem<T> {
   pub fn with_memory(size: Idx, mem: M) -> Self {
@@ -312,9 +311,10 @@ impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: ReadOnlyM
   pub fn flat_view<'a>(&'a self) -> Option<MemArrayView1d<'a, T>> {
     if self.is_packed() {
       let flat_size = self.flat_size();
+      let flat_offset = self.flat_offset();
       Some(MemArrayView{
         size:       flat_size,
-        offset:     0,
+        offset:     flat_offset,
         stride:     flat_size.to_packed_stride(),
         mem:        &self.mem,
       })
@@ -345,9 +345,10 @@ impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
   pub fn flat_view_mut<'a>(&'a mut self) -> Option<MemArrayViewMut1d<'a, T>> {
     if self.is_packed() {
       let flat_size = self.flat_size();
+      let flat_offset = self.flat_offset();
       Some(MemArrayViewMut{
         size:       flat_size,
-        offset:     0,
+        offset:     flat_offset,
         stride:     flat_size.to_packed_stride(),
         mem:        &mut self.mem,
       })
@@ -356,41 +357,6 @@ impl<Idx, T, M> MemArray<Idx, T, M> where Idx: ArrayIndex, T: Copy, M: Mem<T> {
     }
   }
 }
-
-/*pub struct MemOuterBatchArray<Idx, T> where T: Copy {
-  size:     Idx,
-  offset:   Idx,
-  stride:   Idx,
-  batch_sz:     usize,
-  max_batch_sz: usize,
-  mem:      HeapMem<T>,
-}
-
-pub type MemOuterBatchArray0d<T> = MemOuterBatchArray<Index0d, T>;
-pub type MemOuterBatchArray1d<T> = MemOuterBatchArray<Index1d, T>;
-pub type MemOuterBatchArray2d<T> = MemOuterBatchArray<Index2d, T>;
-pub type MemOuterBatchArray3d<T> = MemOuterBatchArray<Index3d, T>;
-pub type MemOuterBatchArray4d<T> = MemOuterBatchArray<Index4d, T>;
-
-impl<Idx, T> MemOuterBatchArray<Idx, T> where Idx: ArrayIndex, T: Copy {
-  pub fn as_view<'a>(&'a self) -> MemArrayView<'a, <Idx as ArrayIndex>::Above, T> {
-    MemArrayView{
-      size:     self.size.index_append(self.batch_sz),
-      offset:   self.offset.index_append(0),
-      stride:   self.stride.stride_append_packed(self.batch_sz),
-      mem:      &self.mem,
-    }
-  }
-
-  pub fn as_view_mut<'a>(&'a mut self) -> MemArrayViewMut<'a, <Idx as ArrayIndex>::Above, T> {
-    MemArrayViewMut{
-      size:     self.size.index_append(self.batch_sz),
-      offset:   self.offset.index_append(0),
-      stride:   self.stride.stride_append_packed(self.batch_sz),
-      mem:      &mut self.mem,
-    }
-  }
-}*/
 
 pub struct MemArrayView<'a, Idx, T> where /*Idx: 'static,*/ T: Copy + 'static {
   size:     Idx,
@@ -404,6 +370,7 @@ pub type MemArrayView1d<'a, T> = MemArrayView<'a, Index1d, T>;
 pub type MemArrayView2d<'a, T> = MemArrayView<'a, Index2d, T>;
 pub type MemArrayView3d<'a, T> = MemArrayView<'a, Index3d, T>;
 pub type MemArrayView4d<'a, T> = MemArrayView<'a, Index4d, T>;
+pub type MemArrayView5d<'a, T> = MemArrayView<'a, Index5d, T>;
 
 impl<'a, Idx, T> Shape for MemArrayView<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
   type Shape = Idx;
@@ -516,12 +483,6 @@ impl<'a, T> MemArrayView4d<'a, T> where T: Copy + 'static {
       mem:      self.mem,
     }
   }
-
-  pub fn squeeze(self, axis: isize, idx: usize) -> MemArrayView3d<'a, T> {
-    let axis = i2idx(axis, 4);
-    // TODO
-    unimplemented!();
-  }
 }
 
 pub struct MemArrayViewMut<'a, Idx, T> where T: Copy + 'static {
@@ -536,6 +497,7 @@ pub type MemArrayViewMut1d<'a, T> = MemArrayViewMut<'a, Index1d, T>;
 pub type MemArrayViewMut2d<'a, T> = MemArrayViewMut<'a, Index2d, T>;
 pub type MemArrayViewMut3d<'a, T> = MemArrayViewMut<'a, Index3d, T>;
 pub type MemArrayViewMut4d<'a, T> = MemArrayViewMut<'a, Index4d, T>;
+pub type MemArrayViewMut5d<'a, T> = MemArrayViewMut<'a, Index5d, T>;
 
 impl<'a, Idx, T> Shape for MemArrayViewMut<'a, Idx, T> where Idx: ArrayIndex, T: Copy + 'static {
   type Shape = Idx;
@@ -665,24 +627,4 @@ impl<'a, T> MemArrayViewMut4d<'a, T> where T: Copy + 'static {
       mem:      self.mem,
     }
   }
-
-  pub fn squeeze_mut(self, axis: isize, idx: usize) -> MemArrayViewMut3d<'a, T> {
-    let axis = i2idx(axis, 4);
-    // TODO
-    unimplemented!();
-  }
 }
-
-/*pub struct RWMemArray<Idx, T> where T: Copy {
-  size:     Idx,
-  offset:   Idx,
-  stride:   Idx,
-  mem:      Rc<RefCell<HeapMem<T>>>,
-}
-
-pub struct SharedMemArray<Idx, T> where T: Copy {
-  size:     Idx,
-  offset:   Idx,
-  stride:   Idx,
-  mem:      Arc<RwLock<HeapMem<T>>>,
-}*/
